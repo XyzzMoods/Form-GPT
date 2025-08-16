@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Form GPT</title>
+<style>
+  :root {
+    --bg-gradient: linear-gradient(180deg, #21242e, #17181f);
+    --bg-chat-user: #0d6efd;
+    --bg-chat-bot: #2f313d;
+    --bg-input: rgba(40, 42, 54, 0.6);
+    --text: #ececf1;
+    --accent: #0d6efd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg-gradient);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow-x: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+    background: rgba(25, 26, 35, 0.7);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  header img { width: 28px; height: 28px; border-radius: 6px; cursor: pointer; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 500; }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+  }
+  .message {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 15px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    animation: fadeInUp 0.25s ease-in-out forwards;
+    opacity: 0;
+    transform: translateY(6px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .user {
+    align-self: flex-end;
+    background: var(--bg-chat-user);
+    color: white;
+    border-bottom-right-radius: 6px;
+  }
+  .bot {
+    align-self: flex-start;
+    background: var(--bg-chat-bot);
+    border-bottom-left-radius: 6px;
+  }
+  .typing-indicator {
+    display: inline-block;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    0% { opacity: 0.2; }
+    20% { opacity: 1; }
+    100% { opacity: 0.2; }
+  }
+  #form-wrapper {
+    padding: 16px;
+    background: linear-gradient(to top, rgba(23, 24, 31, 0.9), transparent);
+  }
+  #form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-input);
+    border-radius: 24px;
+    padding: 6px 10px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  #input {
+    flex: 1;
+    background: transparent;
+    color: white;
+    border: none;
+    font-size: 15px;
+    padding: 8px;
+    outline: none;
+  }
+  #fileInput { display: none; }
+  .icon-btn {
+    padding: 6px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.08); }
+  button.send-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button.send-btn:hover { background: #0b5ed7; }
+  @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    width: 260px;
+    height: 100%;
+    background: #1d1f27;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.4);
+    padding: 20px;
+    transition: left 0.3s ease;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #sidebar.show { left: 0; }
+  #sidebar h2 { font-size: 16px; margin: 0 0 10px 0; }
+  #historyList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    max-height: calc(100vh - 100px);
+  }
+  .chat-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .chat-history-item span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chat-history-item:hover { background: rgba(255,255,255,0.1); }
+  .delete-btn {
+    background: transparent;
+    border: none;
+    color: #ff4d4d;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <h2>Chat History</h2>
+  <button id="newChatBtn" class="chat-history-item" style="text-align:center; font-weight:bold;">Chat Baru</button>
+  <div id="historyList"></div>
+</div>
+
+<header>
+  <img src="https://pomf2.lain.la/f/gx0ftg8c.png" alt="menu" id="menuBtn">
+  <h1>Form GPT</h1>
+</header>
+
+<div id="chat"></div>
+
+<div id="form-wrapper">
+  <form id="form">
+    <label class="icon-btn" for="fileInput" id="dropZone">📎</label>
+    <input type="file" id="fileInput" accept="image/*">
+    <input id="input" placeholder="Ketik pesan..." autocomplete="off"/>
+    <button class="send-btn" type="submit">➤</button>
+  </form>
+</div>
+
+<script>
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const fileInput = document.getElementById("fileInput");
+  const dropZone = document.getElementById("dropZone");
+  const menuBtn = document.getElementById("menuBtn");
+  const sidebar = document.getElementById("sidebar");
+  const historyList = document.getElementById("historyList");
+  const newChatBtn = document.getElementById("newChatBtn");
+
+  const API_KEY = "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";
+  const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+  let currentChatId = Date.now();
+  let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
+
+  function saveChatHistory() {
+    chatHistory[currentChatId] = {
+      title: chatHistory[currentChatId]?.title || `Chat ${Math.floor(Math.random()*100000)}`,
+      messages: Array.from(chat.querySelectorAll(".message")).map(msg => ({
+        role: msg.classList.contains("user") ? "user" : "bot",
+        text: msg.textContent
+      }))
+    };
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+    loadHistoryList();
+  }
+
+  function loadHistoryList() {
+    historyList.innerHTML = "";
+    Object.entries(chatHistory).forEach(([id, data]) => {
+      const div = document.createElement("div");
+      div.className = "chat-history-item";
+
+      const titleSpan = document.createElement("span");
+      titleSpan.textContent = data.title;
+      titleSpan.onclick = () => {
+        currentChatId = id;
+        chat.innerHTML = "";
+        data.messages.forEach(m => appendMessage(m.role, m.text));
+        sidebar.classList.remove("show");
+      };
+
+      // Rename on right click
+      titleSpan.oncontextmenu = (e) => {
+        e.preventDefault();
+        const newTitle = prompt("Ganti nama chat:", data.title);
+        if (newTitle && newTitle.trim()) {
+          chatHistory[id].title = newTitle.trim();
+          saveChatHistory();
+        }
+      };
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "🗑";
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm("Hapus chat ini?")) {
+          delete chatHistory[id];
+          localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+          loadHistoryList();
+          if (id === currentChatId) {
+            currentChatId = Date.now();
+            chat.innerHTML = "";
+          }
+        }
+      };
+
+      div.appendChild(titleSpan);
+      div.appendChild(deleteBtn);
+      historyList.appendChild(div);
+    });
+  }
+
+  loadHistoryList();
+
+  menuBtn.onclick = () => sidebar.classList.toggle("show");
+
+  newChatBtn.onclick = () => {
+    currentChatId = Date.now();
+    chat.innerHTML = "";
+    chatHistory[currentChatId] = { title: `Chat ${Math.floor(Math.random()*100000)}`, messages: [] };
+    saveChatHistory();
+    sidebar.classList.remove("show");
+  };
+
+  let selectedImage = null;
+  fileInput.addEventListener("change", handleFile);
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    if (e.dataTransfer.files.length > 0) handleSelectedFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile() { if (fileInput.files[0]) handleSelectedFile(fileInput.files[0]); }
+  function handleSelectedFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => { selectedImage = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const userText = input.value.trim();
+    if (!userText && !selectedImage) return;
+
+    appendMessage("user", userText, selectedImage);
+    saveChatHistory();
+
+    input.value = "";
+    selectedImage = null;
+    fileInput.value = "";
+
+    const typingMsg = appendTyping();
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-3.5-turbo",
+          messages: [{ role: "user", content: userText }]
+        })
+      });
+      const data = await res.json();
+      const reply = data.choices?.[0]?.message?.content || "❌ Gagal membalas.";
+      removeTyping(typingMsg);
+      appendMessage("bot", reply);
+      saveChatHistory();
+    } catch (err) {
+      removeTyping(typingMsg);
+      appendMessage("bot", "❌ Terjadi kesalahan");
+      saveChatHistory();
+    }
+  });
+
+  function appendMessage(role, text, image = null) {
+    const div = document.createElement("div");
+    div.className = `message ${role}`;
+    div.textContent = text;
+    if (image) {
+      const img = document.createElement("img");
+      img.src = image;
+      img.style.maxWidth = "100%";
+      img.style.borderRadius = "8px";
+      img.style.marginTop = "8px";
+      div.appendChild(img);
+    }
+    chat.appendChild(div);
+    chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" });
+    return div;
+  }
+
+  function appendTyping() {
+    const div = document.createElement("div");
+    div.className = "message bot";
+    div.innerHTML = `<span class="typing-indicator">● ● ●</span>`;
+    chat.appendChild(div);
+    chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" });
+    return div;
+  }
+
+  function removeTyping(el) { if (el) el.remove(); }
+</script>
+</body>
+</html>
